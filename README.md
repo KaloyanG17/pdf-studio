@@ -4,7 +4,7 @@
 
 **[Live demo →](https://pdf-studio-liart-two.vercel.app)**: click *Try a sample invoice*, no sign-up needed.
 
-![Bulgarian invoice translated to English, layout intact](docs/screenshots/translate.png)
+![A Bulgarian invoice (left) translated to English (right): same fonts, sizes and table layout](docs/screenshots/translate.jpg)
 
 React 19 · TypeScript · NestJS 12 · pdf.js · pdf-lib · Tesseract (OCR) · Supabase (Postgres, auth, storage) · Stripe · Vercel
 
@@ -23,9 +23,7 @@ Most "PDF editors" put a white box over the old text and type on top in Arial. Y
 
 ## Product
 
-| | |
-| --- | --- |
-| ![Home and library](docs/screenshots/home.png) | ![Account and plans](docs/screenshots/account.png) |
+![Home page with quick actions and plans](docs/screenshots/home.jpg)
 
 - **Library** with autosave, version history, side-by-side comparison with the original, and back/forward-friendly URLs (`/doc/:id`).
 - **Accounts and cloud library** (Supabase): sign in and your documents follow you to any computer.

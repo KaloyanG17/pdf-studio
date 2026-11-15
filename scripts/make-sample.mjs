@@ -103,8 +103,9 @@ totals.forEach(([k, v]) => {
   text(v, 545, y, { size: 9.5, align: 'right' });
   y -= 16;
 });
-page.drawRectangle({ x: 390, y: y - 8, width: 155, height: 24, color: accent });
-text('Сума за плащане', 398, y, { size: 9.5, f: bold, color: rgb(1, 1, 1) });
+y -= 8;
+page.drawRectangle({ x: 345, y: y - 8, width: 200, height: 24, color: accent });
+text('Сума за плащане', 355, y, { size: 9.5, f: bold, color: rgb(1, 1, 1) });
 text(money(net + vat) + ' лв.', 538, y, { size: 10.5, f: bold, color: rgb(1, 1, 1), align: 'right' });
 
 // Payment and notes
