@@ -13,7 +13,7 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 import { IconButton, TOOL_LIST } from './Toolbar';
 
-function Modal({ title, onClose, children, wide, locked }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; locked?: boolean }) {
+export function Modal({ title, onClose, children, wide, locked }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; locked?: boolean }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k);

@@ -10,11 +10,13 @@ import {
   VersionsDialog,
   WatermarkDialog,
 } from './components/Dialogs';
+import { AccountDialogs } from './components/Account';
 import { Home } from './components/Home';
 import { PageView } from './components/PageView';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { Sidebar } from './components/Sidebar';
 import { ContextBar, TOOL_KEYS, ToolRail, TopBar } from './components/Toolbar';
+import { pullDoc } from './lib/cloud';
 import { loadFonts } from './lib/fonts';
 import { moveBy } from './lib/geometry';
 import { saveNow } from './lib/persist';
@@ -37,9 +39,12 @@ export default function App() {
   }, []);
 
   const docId = docIdOf(path);
-  if (docId) return <DocRoute id={docId} />;
-  if (path === '/batch') return <Batch />;
-  return <Home />;
+  return (
+    <>
+      {docId ? <DocRoute id={docId} /> : path === '/batch' ? <Batch /> : <Home />}
+      <AccountDialogs />
+    </>
+  );
 }
 
 /** Loads a library document for the editor; unknown ids go back to the library. */
@@ -51,7 +56,9 @@ function DocRoute({ id }: { id: string }) {
     if (useStore.getState().docId !== id) {
       void (async () => {
         await saveNow(); // keep whatever was open before
-        const ok = await useStore.getState().openDoc(id);
+        let ok = await useStore.getState().openDoc(id);
+        // Not on this computer yet: fetch it from the signed-in user's cloud library.
+        if (!ok && (await pullDoc(id).catch(() => false))) ok = await useStore.getState().openDoc(id);
         if (live && !ok) setMissing(true);
       })();
     }

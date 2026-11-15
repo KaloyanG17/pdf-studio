@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { deleteDoc, listDocs, onLibraryChange, renameDoc, timeAgo, type DocRecord } from '../lib/library';
 import { navigate } from '../lib/router';
+import { deleteCloudDoc, pullDoc, pushDoc, queuePush, useCloud } from '../lib/cloud';
 import { useStore } from '../lib/store';
+import { AccountButton, Pricing } from './Account';
 import { DocArt, Icon, type IconName } from './Icon';
 import { IconButton, ThemeToggle } from './Toolbar';
 
@@ -20,6 +22,11 @@ export function Home() {
   const [drag, setDrag] = useState(false);
   const [menu, setMenu] = useState<string | null>(null);
   const busy = useStore((s) => s.busy);
+  const cloudDocs = useCloud((s) => s.cloudDocs);
+  const signedIn = useCloud((s) => !!s.session);
+  const cloudFull = useCloud((s) => s.cloudFull);
+  const setDialog = useCloud((s) => s.setDialog);
+  const [opening, setOpening] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const intent = useRef<Intent>('edit');
 
@@ -35,6 +42,7 @@ export function Home() {
     const s = useStore.getState();
     const id = await s.createDoc(pdfs.slice(0, 1));
     if (!id) return;
+    queuePush(id); // signed in: back it up straight away
     s.setIntent(intent.current === 'edit' ? null : intent.current);
     navigate(`/doc/${id}`);
   };
@@ -45,10 +53,31 @@ export function Home() {
     input.current?.click();
   };
 
+  const inCloud = useMemo(() => new Set(cloudDocs.map((c) => c.id)), [cloudDocs]);
+  // The library is this computer's documents plus any that exist only in the user's cloud.
+  const all = useMemo<(DocRecord & { remote?: boolean })[]>(() => {
+    const local = docs ?? [];
+    const ids = new Set(local.map((d) => d.id));
+    const remote = cloudDocs
+      .filter((c) => !ids.has(c.id))
+      .map((c) => ({ id: c.id, name: c.name, createdAt: 0, updatedAt: Date.parse(c.updated_at), pageCount: c.page_count, thumb: c.thumb, tags: c.tags, pages: [], sourceNames: [], versions: [], remote: true }));
+    return [...local, ...remote].sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [docs, cloudDocs]);
+
+  const openCard = async (d: DocRecord & { remote?: boolean }) => {
+    if (d.remote) {
+      setOpening(d.id);
+      const ok = await pullDoc(d.id).catch(() => false);
+      setOpening(null);
+      if (!ok) return alert('This document could not be downloaded from your cloud library.');
+    }
+    navigate(`/doc/${d.id}`);
+  };
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (docs ?? []).filter((d) => !q || d.name.toLowerCase().includes(q) || d.tags.some((t) => t.toLowerCase().includes(q)));
-  }, [docs, query]);
+    return all.filter((d) => !q || d.name.toLowerCase().includes(q) || d.tags.some((t) => t.toLowerCase().includes(q)));
+  }, [all, query]);
 
   return (
     <div
@@ -83,6 +112,7 @@ export function Home() {
           <span className="dot" /> PDF Studio
         </div>
         <span className="grow" />
+        <AccountButton />
         <ThemeToggle />
       </header>
 
@@ -103,6 +133,17 @@ export function Home() {
               }}
             >
               Open a PDF
+            </button>
+            <button
+              className="ghost big"
+              onClick={async () => {
+                // A fictional Bulgarian invoice, so anyone can try the editor without their own file.
+                const blob = await fetch('/samples/invoice-bg.pdf').then((r) => r.blob());
+                intent.current = 'translate';
+                await open([new File([blob], 'Sample invoice (BG).pdf', { type: 'application/pdf' })]);
+              }}
+            >
+              Try a sample invoice
             </button>
             <span className="faint">{busy ? `${busy}…` : 'or drop a file anywhere'}</span>
           </div>
@@ -127,9 +168,9 @@ export function Home() {
       <section className="library">
         <div className="library-head">
           <h2>
-            Your documents {docs?.length ? <span className="faint">{docs.length}</span> : null}
+            Your documents {all.length ? <span className="faint">{all.length}</span> : null}
           </h2>
-          {!!docs?.length && (
+          {!!all.length && (
             <label className="search">
               <Icon name="search" size={16} />
               <input placeholder="Search by name or tag" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -137,22 +178,38 @@ export function Home() {
           )}
         </div>
 
-        {docs === null ? null : docs.length === 0 ? (
+        {signedIn && cloudFull && (
+          <p className="cloud-note muted">
+            Your free cloud space is full (3 documents). New documents stay on this computer.{' '}
+            <button className="link" onClick={() => setDialog({ kind: 'upgrade' })}>
+              Upgrade for unlimited
+            </button>
+          </p>
+        )}
+        {docs === null ? null : all.length === 0 ? (
           <div className="library-empty glass">
-            <p>No documents yet. Anything you open, edit or translate is saved here automatically, and stays on this computer.</p>
+            <p>
+              No documents yet. Anything you open, edit or translate is saved here automatically
+              {signedIn ? ', and backed up to your account.' : ', and stays on this computer. Sign in to keep them in the cloud.'}
+            </p>
           </div>
         ) : shown.length === 0 ? (
           <p className="muted">Nothing matches “{query}”.</p>
         ) : (
           <div className="grid">
             {shown.map((d) => (
-              <article key={d.id} className="card glass" onClick={() => navigate(`/doc/${d.id}`)}>
+              <article key={d.id} className={`card glass ${opening === d.id ? 'opening' : ''}`} onClick={() => void openCard(d)}>
                 <div className="card-thumb">{d.thumb ? <img src={d.thumb} alt="" draggable={false} /> : <Icon name="page" size={32} />}</div>
                 <div className="card-body">
                   <div className="card-title" title={d.name}>
                     {d.name}
                   </div>
                   <div className="card-meta">
+                    {inCloud.has(d.id) && (
+                      <span className="cloud-mark" title={d.remote ? 'In your cloud: opens on this computer when you click it' : 'Backed up to your account'}>
+                        <Icon name="cloud" size={14} />
+                      </span>
+                    )}
                     {timeAgo(d.updatedAt)} · {d.pageCount} page{d.pageCount === 1 ? '' : 's'}
                     {d.versions?.length ? ` · ${d.versions.length} version${d.versions.length === 1 ? '' : 's'}` : ''}
                   </div>
@@ -172,16 +229,33 @@ export function Home() {
                         onClick={async () => {
                           setMenu(null);
                           const name = prompt('Rename document', d.name);
-                          if (name?.trim()) await renameDoc(d.id, name.trim());
+                          if (!name?.trim()) return;
+                          if (d.remote && !(await pullDoc(d.id).catch(() => false))) return;
+                          await renameDoc(d.id, name.trim());
+                          if (inCloud.has(d.id)) await pushDoc(d.id).catch(() => undefined);
                         }}
                       >
                         Rename
                       </button>
+                      {signedIn && !inCloud.has(d.id) && !d.remote && (
+                        <button
+                          onClick={async () => {
+                            setMenu(null);
+                            const ok = await pushDoc(d.id).catch((e) => (alert(`Upload failed: ${(e as Error).message}`), true));
+                            if (!ok) setDialog({ kind: 'upgrade', reason: 'Your free plan keeps 3 documents in the cloud.' });
+                          }}
+                        >
+                          Save to cloud
+                        </button>
+                      )}
                       <button
                         className="danger"
                         onClick={async () => {
                           setMenu(null);
-                          if (confirm(`Delete “${d.name}” and its history from this computer? This cannot be undone.`)) await deleteDoc(d.id);
+                          const where = inCloud.has(d.id) ? (d.remote ? 'from your cloud library' : 'from this computer and your cloud library') : 'from this computer';
+                          if (!confirm(`Delete “${d.name}” and its history ${where}? This cannot be undone.`)) return;
+                          if (!d.remote) await deleteDoc(d.id);
+                          if (inCloud.has(d.id)) await deleteCloudDoc(d.id);
                         }}
                       >
                         Delete
@@ -194,6 +268,7 @@ export function Home() {
           </div>
         )}
       </section>
+      <Pricing />
       {drag && <div className="drop-hint">Drop a PDF to open it</div>}
     </div>
   );

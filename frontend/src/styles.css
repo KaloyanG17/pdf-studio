@@ -403,3 +403,41 @@ input[type='range'] { accent-color: var(--accent-text); width: 100%; }
   .hero-art { display: none; }
   .actions { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ---------- Accounts, cloud library, plans ---------- */
+.link { background: none; border: 0; padding: 0; color: var(--accent-text); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.small { font-size: 12.5px; }
+.account-chip { max-width: 240px; }
+.account-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pro-badge, .plan-pill { font-size: 11px; font-weight: 650; letter-spacing: 0.02em; padding: 2px 8px; border-radius: 999px;
+  color: var(--accent-text); background: rgba(128, 117, 255, 0.14); border: 1px solid rgba(128, 117, 255, 0.3); }
+.plan-pill.pro, .pro-badge { color: #fff; background: linear-gradient(160deg, var(--peri) -20%, var(--violet) 70%); border-color: transparent; }
+.auth-form { display: flex; flex-direction: column; gap: 12px; }
+.auth-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+.auth-form input { font: inherit; font-size: 14px; color: var(--text); padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--hair-strong); background: rgba(var(--surface-rgb), 0.6); outline: none; }
+.auth-form input:focus { border-color: var(--violet); box-shadow: 0 0 0 3px var(--focus); }
+.auth-form .solid { margin-top: 4px; padding: 11px; }
+.account-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.account-email-big { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.meter { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.meter-head { display: flex; justify-content: space-between; gap: 8px; }
+.meter-bar { height: 6px; border-radius: 999px; background: var(--hair); overflow: hidden; }
+.meter-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--peri), var(--violet));
+  transition: width 0.5s var(--ease); }
+.meter-bar span.full { background: linear-gradient(90deg, var(--pink), var(--violet)); }
+.cloud-note { margin: -6px 0 16px; font-size: 13.5px; }
+.cloud-mark { display: inline-flex; vertical-align: -3px; margin-right: 4px; color: var(--accent-text); }
+.card.opening { opacity: 0.6; pointer-events: none; }
+.pricing { max-width: 1180px; margin: 64px auto 72px; }
+.pricing h2 { margin: 0 0 16px; }
+.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.plan { border-radius: 20px; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.plan.featured { border-color: rgba(128, 117, 255, 0.45); box-shadow: 0 0 0 1px rgba(128, 117, 255, 0.25), var(--shadow-sm); }
+.plan-name { font-weight: 650; }
+.plan-price { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.plan-price .faint { font-size: 14px; font-weight: 500; margin-left: 2px; }
+.plan ul { list-style: none; padding: 0; margin: 4px 0; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; color: var(--muted); flex: 1; }
+.plan li { display: flex; gap: 8px; align-items: flex-start; }
+.plan li svg { color: var(--accent-text); flex: none; margin-top: 1px; }
+.modal .plan { padding: 16px; }

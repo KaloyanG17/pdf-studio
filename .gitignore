@@ -5,3 +5,6 @@ dist-test
 frontend/public/vendor
 .vercel
 *.tsbuildinfo
+
+.vercel
+.env*

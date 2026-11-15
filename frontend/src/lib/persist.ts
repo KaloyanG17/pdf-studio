@@ -1,4 +1,5 @@
 import { learnFrom } from './glossary';
+import { queuePush } from './cloud';
 import { saveDoc, saveFile } from './library';
 import { useStore } from './store';
 
@@ -38,6 +39,7 @@ export async function saveNow() {
     versions: s.versions,
     watermark: s.watermark,
   });
+  queuePush(id); // signed in: keep the cloud copy current
   lastSavedAt = Date.now();
   listeners.forEach((l) => l());
 }

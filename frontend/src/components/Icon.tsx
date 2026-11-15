@@ -112,6 +112,14 @@ const P: Record<string, React.ReactNode> = {
   alignl: <path d="M3.5 5h13M3.5 8.5h8M3.5 12h13M3.5 15.5h8" />,
   alignc: <path d="M3.5 5h13M6 8.5h8M3.5 12h13M6 15.5h8" />,
   alignr: <path d="M3.5 5h13M8.5 8.5h8M3.5 12h13M8.5 15.5h8" />,
+  user: (
+    <>
+      <circle cx="10" cy="7" r="3.2" />
+      <path d="M3.8 16.5c.9-3 3.3-4.5 6.2-4.5s5.3 1.5 6.2 4.5" />
+    </>
+  ),
+  cloud: <path d="M6 15.5h8.2a3.3 3.3 0 00.4-6.6A4.6 4.6 0 005.8 8.3 3.6 3.6 0 006 15.5z" />,
+  check: <path d="M4.5 10.5l3.5 3.5 7.5-8" />,
   more: (
     <>
       <circle cx="5" cy="10" r=".6" />

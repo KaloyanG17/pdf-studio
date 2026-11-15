@@ -29,10 +29,14 @@ export class TranslateService {
     };
   }
 
-  async translate(texts: string[], source: string, target: string, providerId?: string) {
+  validate(texts: unknown, source: string, target: string) {
     if (!Array.isArray(texts) || texts.some((t) => typeof t !== 'string')) throw new BadRequestException('texts must be string[]');
     if (!LANGUAGES[target]) throw new BadRequestException(`Unsupported target language ${target}`);
     if (source !== 'auto' && !LANGUAGES[source]) throw new BadRequestException(`Unsupported source language ${source}`);
+  }
+
+  async translate(texts: string[], source: string, target: string, providerId?: string) {
+    this.validate(texts, source, target);
     const id = providerId && this.providers[providerId] ? providerId : this.defaultProvider;
     const provider = this.providers[id];
     if (!texts.length) return { provider: provider.name, translations: [] };

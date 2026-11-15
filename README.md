@@ -1,102 +1,119 @@
 # PDF Studio
 
-A clean, liquid-glass PDF editor for invoices and documents. Edit, annotate, sign, translate, merge and split PDFs in the browser.
-React + TypeScript (Vite) frontend, NestJS backend.
+**Edit and translate invoices without breaking their layout.** Open a PDF, retype any line in its original font, translate Bulgarian ⇄ English with the table still lined up, sign it, and download a real PDF where the old text is actually gone.
 
-## Run it
+**[Live demo →](https://pdf-studio-liart-two.vercel.app)**: click *Try a sample invoice*, no sign-up needed.
 
-```bash
-npm install
-npm run dev
+![Bulgarian invoice translated to English, layout intact](docs/screenshots/translate.png)
+
+React 19 · TypeScript · NestJS 12 · pdf.js · pdf-lib · Tesseract (OCR) · Supabase (Postgres, auth, storage) · Stripe · Vercel
+
+---
+
+## Why this is hard
+
+Most "PDF editors" put a white box over the old text and type on top in Arial. Your invoice then has a different font, wobbly baselines, and the original text is still in the file for anyone to copy out. PDF Studio solves the underlying problems:
+
+| Problem | What PDF Studio does |
+| --- | --- |
+| **The new text doesn't look like the old text** | Reuses the PDF's own embedded font when it has every glyph needed. Otherwise it switches to a *metric-compatible* substitute (Liberation for Arial/Times/Courier, Carlito for Calibri), so widths and line breaks match. Text is placed on the original baseline, with the original word and character spacing. On the sample invoice, **91 of 93 lines re-render pixel-identical**. |
+| **Covered text is still in the file** | On export the backend parses the page's content stream, removes the glyphs under each edit, and swaps them for equivalent `TJ` advances, so the rest of the line stays exactly in place ([`redact.ts`](backend/src/pdf/redact.ts)). The old text can't be copied, searched or extracted. |
+| **Translations are longer than the original** | A translated paragraph first grows into free space beside or below it, which is found by checking the rendered pixels for table-cell borders. The font shrinks only when there's no room. Dates and numbers are converted to the target language's format, glossary terms are protected, and ALL CAPS stays ALL CAPS. |
+| **Scans have no text** | In-browser OCR (Bulgarian + English) with font sizes measured from the ink, plus a fix for Latin letters that look like Cyrillic ones (OCR often reads "на" as "Ha"). Exported scans get an invisible, searchable text layer. |
+
+## Product
+
+| | |
+| --- | --- |
+| ![Home and library](docs/screenshots/home.png) | ![Account and plans](docs/screenshots/account.png) |
+
+- **Library** with autosave, version history, side-by-side comparison with the original, and back/forward-friendly URLs (`/doc/:id`).
+- **Accounts and cloud library** (Supabase): sign in and your documents follow you to any computer.
+- **Plans and billing** (Stripe, test mode). Upgrade through Stripe Checkout, manage the subscription in the Stripe customer portal, and a webhook keeps the plan in sync.
+
+| Plan | Translation | Cloud documents |
+| --- | --- | --- |
+| Guest | 5,000 characters / day | this computer only |
+| Free account | 20,000 characters / month | 3 |
+| Pro (€4.99/month) | 500,000 characters / month | unlimited |
+
+> The demo's Stripe runs in **test mode**: upgrade with card `4242 4242 4242 4242`, any future date and any CVC. No real money moves.
+
+Plus: find & replace, glossary and translation memory, batch translation to a ZIP, drawing, shapes and highlights, whiteout, signatures, images, page numbers, watermarks, and merging, splitting, rotating and reordering pages.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    UI[React + zustand] --> PDFJS[pdf.js<br/>render + text geometry]
+    UI --> OCR[Tesseract<br/>OCR in a worker]
+    UI --> IDB[(IndexedDB<br/>local library)]
+    UI --> SBC[supabase-js<br/>auth + cloud library]
+  end
+  subgraph Vercel
+    API[NestJS function<br/>/api/*]
+    CDN[Static frontend<br/>+ fonts, OCR models]
+  end
+  UI -- export, translate, billing --> API
+  API --> PDFLIB[pdf-lib<br/>re-typeset + redact]
+  API --> TR[DeepL / Claude / MyMemory]
+  API --> STRIPE[Stripe<br/>Checkout, Portal, webhooks]
+  API -- service role --> SB[(Supabase<br/>Postgres + Storage)]
+  SBC -- user JWT + RLS --> SB
+  STRIPE -- webhook --> API
 ```
 
-Open http://localhost:5173 (the API runs on http://localhost:3001 and is proxied under `/api`).
+**Security model.** The browser only ever holds the public Supabase key and the user's JWT. Every table and the storage bucket use **row-level security**: a user can only read their own rows and their own `<user id>/…` folder. The browser can't change its own plan, because the `profiles` table has no update policy. The free plan's 3-document limit is enforced **in Postgres**, in an insert policy, so it can't be bypassed from the client. Translation quotas are metered by an atomic `consume_usage()` SQL function, so parallel requests can't overshoot. Guests are counted by a salted hash of their IP; no IPs are stored. Stripe webhooks are verified against the raw request body. See [`supabase/migrations/001_accounts.sql`](supabase/migrations/001_accounts.sql).
 
-## Features
-
-| Area | What you can do |
-| --- | --- |
-| Library | The home page lists every document you opened, with thumbnail, last change, page count, versions and tags (Edited, Translated EN → BG, OCR). Everything autosaves to this browser (IndexedDB), so nothing is lost on refresh and nothing leaves the computer. Search, rename, delete. |
-| Navigation | Each document has its own address (`/doc/<id>`), so the browser's back/forward buttons and bookmarks work. `/batch` is batch translation. |
-| Versions | A version is saved before every translation and on every download; you can also name one yourself. Restore any of them (undoable). |
-| Side-by-side | Original and edited pages next to each other, zoomed to fit. |
-| Quick actions | Edit text, Translate, Sign or Batch translate straight from the home page. |
-| Batch translate | Drop many PDFs, translate them all, download one ZIP. Each result is also saved to the library. |
-| Glossary | Terms that always translate a fixed way, or never get translated (names, brands, addresses). |
-| Translation memory | When you correct a translated line, the next translation of the same text uses your version. |
-| Dates | Dates are converted to the target language's format (18/11/2024 ⇄ 18.11.2024 г.), even when the engine rewrites or drops them. |
-| OCR | "Recognise text in scans" reads scanned pages (Bulgarian + English) entirely on your computer. The recognised text can then be edited, searched and translated, and the exported file becomes searchable. |
-| Watermark | COPY / PAID / КОПИЕ… stamped diagonally across every page on export. |
-| Edit text | **Edit text** tool (E): click any line of the original and retype it. It keeps the same font (the PDF's own embedded font when that font has every character you type), the same size, colour and exact baseline. The old text is covered with the sampled background colour. |
-| Find & replace | Ctrl+F. Replaces text across the whole document. Replaced lines keep their original font, size and colour. |
-| Add | Text boxes (T), images (button or paste), signatures (draw pad), shapes, lines, arrows |
-| Draw | Freehand pen (D), highlighter (H), rectangles (R), ellipses (O), lines (L), arrows (A). Hold Shift for squares, circles and 45° lines |
-| Remove | Whiteout (W) hides any area; eraser (X) deletes items you added; Del deletes the selected item |
-| Translate | Whole document or one page, Bulgarian ⇄ English plus 17 other languages. The translation keeps the original font, size and line spacing. A longer translation first grows into free space beside or below its paragraph, and the font shrinks only if there is no room. Each block stays editable, and one Undo reverts the whole translation. |
-| Compare | Hold Space (or the eye icon) to see the untouched original. |
-| Page numbers | Four formats, four positions, a custom start number, and an option to skip the first page. |
-| Pages | Reorder (drag thumbnails), rotate, duplicate, delete, insert blank pages, merge other PDFs |
-| Export | Download the PDF, extract a page range, split into single pages, download plain text |
-| General | Undo/redo (Ctrl+Z / Ctrl+Y), zoom, arrow keys nudge the selection, full Unicode/Cyrillic fonts (DejaVu) on screen and in the exported file |
-
-## Translation engines
-
-Configure in `backend/.env` (copy from `.env.example`):
-
-- **DeepL** – `DEEPL_API_KEY`. Best quality for Bulgarian; the free tier allows 500,000 characters/month.
-- **Claude** – `ANTHROPIC_API_KEY` (model `ANTHROPIC_MODEL`, default `claude-opus-5-5`). Uses the whole page as context.
-- **MyMemory** – used when no key is set. It needs no key but allows only about 5,000 characters/day (50,000 with `MYMEMORY_EMAIL`).
-
-The engine is picked automatically (DeepL > Claude > MyMemory), and you can switch it in the Translate dialog.
-
-## How it works
-
-- The frontend renders pages with pdf.js and keeps every edit as a JSON "annotation" in PDF point coordinates.
-- On export, the original PDF bytes plus the annotation JSON go to `POST /api/pdf/export`. The backend uses pdf-lib to copy the original pages, so the original text stays vector and searchable, then draws the edits and embeds subset fonts.
-- `POST /api/translate` → `{ texts, source, target, provider? }` returns `{ translations }`.
+**Serverless NestJS.** Nest 12 ships as ES modules, and Vercel's function loader can't `require()` ESM. So the backend is bundled into a single CommonJS file with esbuild ([`backend/package.json`](backend/package.json) `bundle` script). That file runs behind one Vercel Function (`api/index.js`), and a rewrite sends every `/api/*` request to it. The same Nest app also runs as a normal server locally.
 
 ```
 backend/src
-  pdf/        export endpoint, annotation types, drawing
-  translate/  providers (DeepL, Claude, MyMemory)
-  fonts/      serves the Unicode TTFs used for editing + export
+  pdf/        export: copy pages → redact covered text → draw edits → OCR layer → watermark
+  translate/  DeepL, Claude and MyMemory providers, quota-checked
+  account/    Supabase (auth, profiles, quotas), Stripe billing, webhooks
+  fonts/      serves the metric-compatible substitute fonts
 frontend/src
-  lib/        store (zustand), pdf.js helpers, text extraction, translation flow, API
-  components/ Toolbar, Sidebar (pages), PageView (editor), PropertiesPanel, dialogs
+  lib/        pdf.js text extraction, translation pipeline, OCR, glossary, IndexedDB library, cloud sync
+  components/ editor, toolbar, dialogs, home/library, account and pricing
+supabase/migrations   schema, RLS policies, quota function
 ```
 
-## Limits / next steps
+## Run it locally
 
-- On export, original text under an edit/translation cover or an opaque whiteout is **removed from the file**, not just hidden (`backend/src/pdf/redact.ts`), so it cannot be copied, searched or extracted. Text after it on the same line keeps its exact position. Not covered: text drawn inside form XObjects, Type3 fonts without metrics, text that is part of an image, and vector graphics or images under a whiteout, which are still only covered.
-- Scanned PDFs have no text layer, so they need OCR before their text can be edited or translated.
-- Paid version: auth + plans (e.g. Stripe) can gate endpoints in the NestJS backend. Translation volume and export count are natural limits to meter.
+```bash
+npm install
+npm run dev            # web on http://localhost:5173, API on :3001
+```
 
-## How text keeps its look
+Everything works without any keys: local library, the free MyMemory translation engine, no accounts. To turn on accounts and billing, link the project to Vercel. The Supabase and Stripe Marketplace integrations provide every variable:
 
-1. pdf.js converts every font embedded in the PDF to OpenType. The app registers those fonts with the browser, and on export it sends them to the server, which embeds them again. Edited text therefore uses the document's own font.
-2. Embedded fonts are usually *subsets* that contain only the characters the document uses. If new text needs a character the subset lacks (for example English letters in a Bulgarian-only font), the whole block switches to a **metric-compatible substitute**, so widths and line breaks match the original font: Liberation Sans for Arial/Helvetica, Liberation Serif for Times, Liberation Mono for Courier, Carlito for Calibri. All of them include Cyrillic.
-3. Text is placed by its baseline, the same coordinate the PDF uses, so it sits exactly where the original line was. Size and line spacing are copied from the original.
+```bash
+vercel link
+vercel env pull        # writes .env.local, which the API reads
+npm run db:migrate     # applies supabase/migrations to the database
+```
+
+Optional, in `backend/.env`: `DEEPL_API_KEY` (the best quality for Bulgarian) or `ANTHROPIC_API_KEY`. For the live Stripe webhook, run `node scripts/setup-stripe-webhook.mjs <site url>` and store the printed secret as `STRIPE_WEBHOOK_SECRET`.
 
 ## Tests
 
 ```bash
-npm test -w backend
+npm test                                                # export fidelity: 6 tests
+API_URL=http://localhost:3001 node backend/test/accounts.e2e.mjs   # accounts, RLS, quotas, billing: 10 tests
 ```
 
-Six export-fidelity tests on a generated invoice-like PDF:
-- Re-typesetting every line unchanged reproduces it within 0.05 pt and removes the original.
-- Centred and right-aligned edits keep their anchor.
-- Whiteout removes text and a highlight doesn't.
-- Partial removal keeps the rest of a line in place.
-- The watermark is stamped along the page diagonal.
-- The OCR layer is searchable.
+- **Fidelity** (generated invoice-like PDF): re-typesetting every line reproduces it within 0.05 pt and removes the original. Centred and right-aligned edits keep their anchor. Whiteout removes text but a highlight doesn't. Partial removal keeps the rest of the line in place. The watermark follows the page diagonal. The OCR layer is searchable.
+- **Accounts** (against the real Supabase project, with a throwaway user that is deleted afterwards): only public keys are exposed. The browser can't upgrade itself. The 4th free cloud document is rejected by RLS. Writing to another user's folder fails. Translation is metered, and requests over the quota get `402`. Checkout returns a Stripe URL. Unsigned webhooks are rejected.
 
-They build into `dist-test/`, so they can run while the dev server is running.
+## Limits
 
-## Not built yet
+- Redaction doesn't reach text inside form XObjects, Type3 fonts without metrics, or text that is part of an image. Vector graphics and images under a whiteout are covered, not removed.
+- Changing a line item doesn't recalculate the invoice totals.
+- No PDF form filling, password protection or compression yet.
+- Sign-up creates confirmed accounts directly, through the API, instead of sending confirmation e-mails. Supabase's built-in mailer is limited to a few messages an hour. A production deployment would use its own SMTP and e-mail verification.
 
-- **Accounts, cloud sync and payments.** These need a hosted database and auth provider, plus your own Stripe account and keys. The library is local-only for now, and `lib/library.ts` is the single place to swap for a cloud store.
-- **Totals recalculation.** Changing a line item doesn't yet update the subtotal, VAT and total automatically.
-- **PDF form filling.**
-- **Password protection.**
-- **Compression.**
+## License
+
+[MIT](LICENSE). The sample invoice in `frontend/public/samples/` is generated by `scripts/make-sample.mjs`; all of its data is fictional.

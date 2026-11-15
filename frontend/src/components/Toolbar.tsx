@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AccountButton } from './Account';
 import { exportPdf, exportText } from '../lib/api';
 import { FAMILIES } from '../lib/fonts';
 import { timeAgo } from '../lib/library';
@@ -150,6 +151,7 @@ export function TopBar({ onHome, onOpen, onTranslate, onFind, onNumbers, onShort
         <IconButton icon="columns" label={split ? 'Close side-by-side review' : 'Side-by-side review: original and edited'} active={split} onClick={() => useStore.getState().toggleSplit()} />
         <IconButton icon="clock" label={`Version history${versions ? ` (${versions})` : ''}`} onClick={onVersions} />
         <IconButton icon="keys" label="Shortcuts (?)" onClick={onShortcuts} />
+        <AccountButton />
         <ThemeToggle />
         <span className="sep" />
         <button className="ghost" onClick={onTranslate}>

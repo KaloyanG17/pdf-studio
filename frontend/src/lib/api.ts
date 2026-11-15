@@ -1,3 +1,4 @@
+import { authed, requestUpgrade } from './cloud';
 import { getEmbedded } from './embedded';
 import { getTextLines, groupBlocks } from './pdf';
 import { useStore } from './store';
@@ -86,11 +87,17 @@ export async function getTranslateInfo(): Promise<TranslateInfo> {
 }
 
 export async function translateTexts(texts: string[], source: string, target: string, provider?: string) {
-  const res = await fetch('/api/translate', {
+  // Signed-in users count against their own plan; guests against a daily allowance.
+  const res = await authed('/api/translate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ texts, source, target, provider }),
   });
+  if (res.status === 402) {
+    const msg = await errorText(res);
+    requestUpgrade(msg);
+    throw new Error(msg);
+  }
   if (!res.ok) throw new Error(await errorText(res));
   return (await res.json()) as { provider: string; translations: string[] };
 }
