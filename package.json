@@ -1,0 +1,20 @@
+{
+  "name": "pdf-studio",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run vendor && concurrently -n api,web -c blue,magenta \"npm run start:dev -w backend\" \"npm run dev -w frontend\"",
+    "build": "npm run vendor && npm run build -w backend && npm run build -w frontend",
+    "vendor": "node scripts/copy-vendor.mjs",
+    "test": "npm test -w backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
