@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "nest build",
+    "build": "nest build && npm run bundle",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
-    "test": "tsc -p . --outDir dist-test && node --test test/*.test.mjs"
+    "test": "tsc -p . --outDir dist-test && node --test test/*.test.mjs",
+    "bundle": "esbuild dist/serverless.js --bundle --platform=node --format=cjs --target=node24 --outfile=dist/serverless.bundle.js --log-level=warning --external:@nestjs/microservices --external:@nestjs/websockets --external:class-validator --external:class-transformer --external:@fastify/static --external:@docx-editor.dev/fonts --external:dejavu-fonts-ttf"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
@@ -30,6 +31,7 @@
     "@types/express": "^5.0.6",
     "@types/multer": "^2.3.0",
     "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
     "typescript": "^6.0.3"
   }
 }
