@@ -25,6 +25,7 @@ Most "PDF editors" put a white box over the old text and type on top in Arial. Y
 
 ![Home page with quick actions and plans](docs/screenshots/home.jpg)
 
+- **Automatic direction.** The document's language is detected from its own text, offline: script, letters unique to one language, and common words. A Bulgarian invoice is offered Bulgarian → English and an English one English → Bulgarian. Batch translation decides per file, so a mixed folder works.
 - **Library** with autosave, version history, side-by-side comparison with the original, and back/forward-friendly URLs (`/doc/:id`).
 - **Accounts and cloud library** (Supabase): sign in and your documents follow you to any computer.
 - **Plans and billing** (Stripe, test mode). Upgrade through Stripe Checkout, manage the subscription in the Stripe customer portal, and a webhook keeps the plan in sync.

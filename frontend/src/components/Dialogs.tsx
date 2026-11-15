@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getTranslateInfo, type TranslateInfo } from '../lib/api';
+import { detectDocument, oppositeOf } from '../lib/detect';
 import { addPageNumbers, countMatches, findReplace, type PageNumberOptions } from '../lib/features';
 import { FAMILIES } from '../lib/fonts';
 import { clearMemory, getGlossary, memorySize, setGlossary, type GlossaryEntry } from '../lib/glossary';
@@ -41,6 +42,26 @@ export function TranslateDialog({ onClose }: { onClose: () => void }) {
   const [provider, setProvider] = useState<string>('');
   const [font, setFont] = useState<FontFamily | 'auto'>('auto');
   const [progress, setProgress] = useState<string | null>(null);
+  const [detected, setDetected] = useState<string | null | undefined>(undefined); // undefined = still looking
+  const touched = useRef(false); // the user picked languages themselves: don't override
+
+  // Read the document's own text and pick the direction: Bulgarian → English, English → Bulgarian.
+  useEffect(() => {
+    let live = true;
+    detectDocument()
+      .then((lang) => {
+        if (!live) return;
+        setDetected(lang);
+        if (lang && !touched.current) {
+          setSource(lang);
+          setTarget(oppositeOf(lang));
+        }
+      })
+      .catch(() => live && setDetected(null));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     getTranslateInfo()
@@ -91,7 +112,15 @@ export function TranslateDialog({ onClose }: { onClose: () => void }) {
         Each paragraph is replaced in place, in the same font, size and spacing. It stays editable, and a single undo reverts it.
       </p>
       <div className="lang-row">
-        <select value={source} onChange={(e) => setSource(e.target.value)} aria-label="From">
+        <select
+          value={source}
+          onChange={(e) => {
+            touched.current = true;
+            setSource(e.target.value);
+            if (e.target.value === target) setTarget(oppositeOf(e.target.value));
+          }}
+          aria-label="From"
+        >
           <option value="auto">Detect language</option>
           {langs.map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
@@ -102,18 +131,33 @@ export function TranslateDialog({ onClose }: { onClose: () => void }) {
           title="Swap languages"
           onClick={() => {
             if (source === 'auto') return;
+            touched.current = true;
             setSource(target);
             setTarget(source);
           }}
         >
           <Icon name="swap" />
         </button>
-        <select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="To">
+        <select
+          value={target}
+          onChange={(e) => {
+            touched.current = true;
+            setTarget(e.target.value);
+          }}
+          aria-label="To"
+        >
           {langs.map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
       </div>
+      <p className="detect-note faint">
+        {detected === undefined
+          ? 'Detecting the document language…'
+          : detected && info?.languages[detected]
+            ? `Detected ${info.languages[detected]}. Change it above if that's wrong.`
+            : 'Could not tell the language from the text. Choose it above.'}
+      </p>
       <div className="seg">
         <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>All pages</button>
         <button className={scope === 'current' ? 'on' : ''} onClick={() => setScope('current')}>This page</button>

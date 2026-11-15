@@ -441,3 +441,4 @@ input[type='range'] { accent-color: var(--accent-text); width: 100%; }
 .plan li { display: flex; gap: 8px; align-items: flex-start; }
 .plan li svg { color: var(--accent-text); flex: none; margin-top: 1px; }
 .modal .plan { padding: 16px; }
+.detect-note { margin: -6px 0 0; font-size: 12.5px; }

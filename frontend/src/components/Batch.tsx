@@ -1,6 +1,7 @@
 import { zipSync } from 'fflate';
 import { useEffect, useRef, useState } from 'react';
 import { buildPdf, download, getTranslateInfo, type TranslateInfo } from '../lib/api';
+import { detectDocument, oppositeOf } from '../lib/detect';
 import { saveNow } from '../lib/persist';
 import { navigate } from '../lib/router';
 import { useStore } from '../lib/store';
@@ -15,13 +16,16 @@ interface Item {
   note?: string;
   docId?: string;
   out?: Uint8Array;
+  /** Language this file was translated into (per file in auto mode). */
+  target?: string;
 }
 
 /** Translate many PDFs in one go; each result is also saved to the library. */
 export function Batch() {
   const [items, setItems] = useState<Item[]>([]);
   const [info, setInfo] = useState<TranslateInfo | null>(null);
-  const [source, setSource] = useState('en');
+  // 'pair': detect each file and translate Bulgarian ⇄ English.
+  const [source, setSource] = useState('pair');
   const [target, setTarget] = useState('bg');
   const [provider, setProvider] = useState('');
   const [running, setRunning] = useState(false);
@@ -55,11 +59,19 @@ export function Batch() {
         const s = useStore.getState();
         const id = await s.createDoc([list[i].file]);
         if (!id) throw new Error('Could not open this PDF');
-        update(i, { note: 'Translating…', docId: id });
+        let src = source;
+        let tgt = target;
+        if (source === 'pair') {
+          const lang = await detectDocument();
+          src = lang ?? 'auto';
+          tgt = oppositeOf(lang ?? 'en');
+        }
+        const names = info?.languages ?? {};
+        update(i, { note: src === 'auto' ? 'Translating…' : `Translating ${names[src] ?? src} → ${names[tgt] ?? tgt}…`, docId: id, target: tgt });
         const r = await translatePages({
           pageIds: useStore.getState().pages.map((p) => p.id),
-          source,
-          target,
+          source: src,
+          target: tgt,
           provider,
           font: 'auto',
         });
@@ -70,7 +82,7 @@ export function Batch() {
         update(i, {
           status: 'done',
           out: new Uint8Array(await blob.arrayBuffer()),
-          note: r.blocks ? `${r.blocks} blocks translated` : 'No selectable text (scanned?)',
+          note: r.blocks ? `${r.blocks} blocks translated${src !== 'auto' ? ` (${src.toUpperCase()} → ${tgt.toUpperCase()})` : ''}` : 'No selectable text (scanned?)',
         });
       } catch (e) {
         update(i, { status: 'failed', note: (e as Error).message });
@@ -84,11 +96,12 @@ export function Batch() {
   const zip = () => {
     const files: Record<string, Uint8Array> = {};
     for (const it of done) {
-      let name = it.file.name.replace(/\.pdf$/i, '') + `-${target}.pdf`;
-      for (let k = 2; files[name]; k++) name = it.file.name.replace(/\.pdf$/i, '') + `-${target}-${k}.pdf`;
+      const t = it.target ?? target;
+      let name = it.file.name.replace(/\.pdf$/i, '') + `-${t}.pdf`;
+      for (let k = 2; files[name]; k++) name = it.file.name.replace(/\.pdf$/i, '') + `-${t}-${k}.pdf`;
       files[name] = it.out!;
     }
-    download(new Blob([zipSync(files, { level: 6 }) as BlobPart], { type: 'application/zip' }), `translated-${target}.zip`);
+    download(new Blob([zipSync(files, { level: 6 }) as BlobPart], { type: 'application/zip' }), `translated${source === 'pair' ? '' : `-${target}`}.zip`);
   };
 
   const langs = info ? Object.entries(info.languages) : [];
@@ -108,6 +121,7 @@ export function Batch() {
       <section className="batch-panel glass heavy">
         <div className="lang-row">
           <select value={source} onChange={(e) => setSource(e.target.value)} aria-label="From" disabled={running}>
+            <option value="pair">Auto: Bulgarian ⇄ English</option>
             <option value="auto">Detect language</option>
             {langs.map(([k, v]) => (
               <option key={k} value={k}>
@@ -118,7 +132,7 @@ export function Batch() {
           <button
             className="icon-btn"
             title="Swap languages"
-            disabled={running || source === 'auto'}
+            disabled={running || source === 'auto' || source === 'pair'}
             onClick={() => {
               setSource(target);
               setTarget(source);
@@ -126,7 +140,8 @@ export function Batch() {
           >
             <Icon name="swap" />
           </button>
-          <select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="To" disabled={running}>
+          <select value={source === 'pair' ? 'pair' : target} onChange={(e) => setTarget(e.target.value)} aria-label="To" disabled={running || source === 'pair'}>
+            {source === 'pair' && <option value="pair">the other language</option>}
             {langs.map(([k, v]) => (
               <option key={k} value={k}>
                 {v}
